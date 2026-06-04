@@ -35,7 +35,7 @@ class PauseOverlayService : AccessibilityService() {
 
     override fun onServiceConnected() {
         executor = ShellExecutor()
-        overlayManager = PauseOverlayManager(this, executor)
+        overlayManager = PauseOverlayManager(this)
         reloadTrigger()
         instance = this
     }
