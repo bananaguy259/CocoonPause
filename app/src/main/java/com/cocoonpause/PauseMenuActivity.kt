@@ -33,7 +33,6 @@ class PauseMenuActivity : ComponentActivity() {
         super.onDestroy()
         if (instance == this) {
             instance = null
-            PauseOverlayService.instance?.overlayManager?.onActivityDismissed()
         }
     }
 
