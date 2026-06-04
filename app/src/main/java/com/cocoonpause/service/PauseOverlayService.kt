@@ -57,7 +57,7 @@ class PauseOverlayService : AccessibilityService() {
 
         when (event.action) {
             KeyEvent.ACTION_DOWN -> {
-                if (event.repeatCount > 0) return overlayManager.isShowing
+                if (event.repeatCount > 0) return false
                 pressedKeys.add(event.keyCode)
                 if (pressedKeys.containsAll(triggerKeycodes)) {
                     if (overlayManager.isShowing) {
@@ -72,7 +72,8 @@ class PauseOverlayService : AccessibilityService() {
                 pressedKeys.remove(event.keyCode)
             }
         }
-        return overlayManager.isShowing
+        // Pass everything else through — the overlay window handles its own input
+        return false
     }
 
     fun exitGame() {
@@ -86,21 +87,24 @@ class PauseOverlayService : AccessibilityService() {
 
     fun captureScreenshot() {
         overlayManager.hide()
+        // Wait for the overlay window to fully clear the compositor before snapping
         Handler(Looper.getMainLooper()).postDelayed({
             scope.launch {
                 val ts = System.currentTimeMillis()
+                val dir = "/storage/emulated/0/Pictures/Screenshots"
+                val path = "$dir/CocoonPause_$ts.png"
+                executor.executeAsRoot("mkdir -p $dir")
+                val result = executor.executeAsRoot("screencap -p $path")
+                // Tell the media scanner about the new file so it shows in gallery
                 executor.executeAsRoot(
-                    "screencap -p /storage/emulated/0/Pictures/Screenshots/CocoonPause_$ts.png"
+                    "am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file://$path"
                 )
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(
-                        this@PauseOverlayService,
-                        "Screenshot saved!",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    val msg = if (result.isSuccess) "Screenshot saved!" else "Screenshot failed"
+                    Toast.makeText(this@PauseOverlayService, msg, Toast.LENGTH_SHORT).show()
                 }
             }
-        }, 300)
+        }, 600)
     }
 
     fun getExecutor(): ShellExecutor = executor

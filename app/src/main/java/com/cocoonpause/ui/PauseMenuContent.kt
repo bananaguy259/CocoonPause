@@ -6,30 +6,28 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.ChevronLeft
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.SportsEsports
-import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusable
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.cocoonpause.models.ControllerStyle
-import com.cocoonpause.models.FanMode
-import com.cocoonpause.models.L2R2Style
-import com.cocoonpause.models.PerfMode
+import com.cocoonpause.models.*
 import com.cocoonpause.tools.ShellExecutor
 import com.cocoonpause.ui.theme.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -40,16 +38,14 @@ fun PauseMenuContent(
     onExitGame: () -> Unit,
     onScreenshot: () -> Unit,
 ) {
-    // ── State ───────────────────────────────────────────────────────────
     var controllerStyle by remember { mutableStateOf<ControllerStyle>(ControllerStyle.Unknown) }
     var l2r2Style       by remember { mutableStateOf<L2R2Style>(L2R2Style.Unknown) }
     var perfMode        by remember { mutableStateOf<PerfMode>(PerfMode.Unknown) }
     var fanMode         by remember { mutableStateOf<FanMode>(FanMode.Unknown) }
     var loading         by remember { mutableStateOf(true) }
-
     val scope = rememberCoroutineScope()
+    val firstFocus = remember { FocusRequester() }
 
-    // Load current device values once on first composition
     LaunchedEffect(Unit) {
         kotlinx.coroutines.withContext(Dispatchers.IO) {
             controllerStyle = ControllerStyle.getStyle(executor)
@@ -58,9 +54,10 @@ fun PauseMenuContent(
             fanMode         = FanMode.getMode(executor)
         }
         loading = false
+        delay(150)
+        runCatching { firstFocus.requestFocus() }
     }
 
-    // ── Full-screen scrim (tap outside card to dismiss) ────────────────
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -71,238 +68,89 @@ fun PauseMenuContent(
             ) { onDismiss() },
         contentAlignment = Alignment.Center,
     ) {
-        // ── Card ───────────────────────────────────────────────────────
         Column(
             modifier = Modifier
                 .width(420.dp)
                 .clip(RoundedCornerShape(20.dp))
                 .background(CocoonSurface)
-                .clickable(
-                    indication = null,
-                    interactionSource = remember { MutableInteractionSource() },
-                ) { /* absorb taps so they don't fall through to scrim */ }
+                .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {}
         ) {
-
-            // ── Header ─────────────────────────────────────────────────
+            // Header
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(CocoonSurface2)
+                modifier = Modifier.fillMaxWidth().background(CocoonSurface2)
                     .padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(
-                    imageVector = Icons.Filled.SportsEsports,
-                    contentDescription = null,
-                    tint = CocoonTextPrimary,
-                    modifier = Modifier.size(22.dp),
-                )
+                Icon(Icons.Filled.SportsEsports, null, tint = CocoonTextPrimary, modifier = Modifier.size(22.dp))
                 Spacer(Modifier.width(12.dp))
-                Text(
-                    text = "PAUSED",
-                    color = CocoonTextPrimary,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp,
-                    modifier = Modifier.weight(1f),
-                )
-                IconButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.size(32.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Close,
-                        contentDescription = "Dismiss",
-                        tint = CocoonTextSecondary,
-                        modifier = Modifier.size(18.dp),
-                    )
+                Text("PAUSED", color = CocoonTextPrimary, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.weight(1f))
+                IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Filled.Close, "Dismiss", tint = CocoonTextSecondary, modifier = Modifier.size(18.dp))
                 }
             }
 
             HorizontalDivider(color = CocoonDivider)
 
-            // ── Screenshot ─────────────────────────────────────────────
-            ActionRow(
-                icon  = Icons.Filled.CameraAlt,
-                label = "Screenshot",
-                onClick = onScreenshot,
-            )
+            ActionRow(Icons.Filled.CameraAlt, "Screenshot", onScreenshot, firstFocus)
 
             HorizontalDivider(color = CocoonDivider)
 
-            // ── Options header ─────────────────────────────────────────
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Tune,
-                    contentDescription = null,
-                    tint = CocoonTextSecondary,
-                    modifier = Modifier.size(16.dp),
-                )
+            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.Tune, null, tint = CocoonTextSecondary, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(8.dp))
-                Text(
-                    text = "Options",
-                    color = CocoonTextSecondary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 1.sp,
-                )
+                Text("Options", color = CocoonTextSecondary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
             }
 
             if (loading) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 20.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator(
-                        color = CocoonTextSecondary,
-                        modifier = Modifier.size(24.dp),
-                        strokeWidth = 2.dp,
-                    )
+                Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), Alignment.Center) {
+                    CircularProgressIndicator(color = CocoonTextSecondary, modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
                 }
             } else {
-                // Controller Mode
-                ModeRow(
-                    label        = "Controller Mode",
-                    currentValue = controllerStyle.displayName,
-                    onPrev = {
-                        scope.launch(Dispatchers.IO) {
-                            val next = ControllerStyle.prev(controllerStyle)
-                            next.enable(executor)
-                            controllerStyle = next
-                        }
-                    },
-                    onNext = {
-                        scope.launch(Dispatchers.IO) {
-                            val next = ControllerStyle.next(controllerStyle)
-                            next.enable(executor)
-                            controllerStyle = next
-                        }
-                    },
-                )
-
-                // L2/R2 Mode
-                ModeRow(
-                    label        = "L2/R2 Mode",
-                    currentValue = l2r2Style.displayName,
-                    onPrev = {
-                        scope.launch(Dispatchers.IO) {
-                            val next = L2R2Style.prev(l2r2Style)
-                            next.enable(executor)
-                            l2r2Style = next
-                        }
-                    },
-                    onNext = {
-                        scope.launch(Dispatchers.IO) {
-                            val next = L2R2Style.next(l2r2Style)
-                            next.enable(executor)
-                            l2r2Style = next
-                        }
-                    },
-                )
-
-                // Performance Mode
-                ModeRow(
-                    label        = "Performance",
-                    currentValue = perfMode.displayName,
-                    onPrev = {
-                        scope.launch(Dispatchers.IO) {
-                            val next = PerfMode.prev(perfMode)
-                            next.enable(executor)
-                            perfMode = next
-                        }
-                    },
-                    onNext = {
-                        scope.launch(Dispatchers.IO) {
-                            val next = PerfMode.next(perfMode)
-                            next.enable(executor)
-                            perfMode = next
-                        }
-                    },
-                )
-
-                // Fan Mode
-                ModeRow(
-                    label        = "Fan Mode",
-                    currentValue = fanMode.displayName,
-                    onPrev = {
-                        scope.launch(Dispatchers.IO) {
-                            val next = FanMode.prev(fanMode)
-                            next.enable(executor)
-                            fanMode = next
-                        }
-                    },
-                    onNext = {
-                        scope.launch(Dispatchers.IO) {
-                            val next = FanMode.next(fanMode)
-                            next.enable(executor)
-                            fanMode = next
-                        }
-                    },
-                )
+                ModeRow("Controller Mode", controllerStyle.displayName,
+                    onPrev = { scope.launch(Dispatchers.IO) { val n = ControllerStyle.prev(controllerStyle); n.enable(executor); controllerStyle = n } },
+                    onNext = { scope.launch(Dispatchers.IO) { val n = ControllerStyle.next(controllerStyle); n.enable(executor); controllerStyle = n } })
+                ModeRow("L2/R2 Mode", l2r2Style.displayName,
+                    onPrev = { scope.launch(Dispatchers.IO) { val n = L2R2Style.prev(l2r2Style); n.enable(executor); l2r2Style = n } },
+                    onNext = { scope.launch(Dispatchers.IO) { val n = L2R2Style.next(l2r2Style); n.enable(executor); l2r2Style = n } })
+                ModeRow("Performance", perfMode.displayName,
+                    onPrev = { scope.launch(Dispatchers.IO) { val n = PerfMode.prev(perfMode); n.enable(executor); perfMode = n } },
+                    onNext = { scope.launch(Dispatchers.IO) { val n = PerfMode.next(perfMode); n.enable(executor); perfMode = n } })
+                ModeRow("Fan Mode", fanMode.displayName,
+                    onPrev = { scope.launch(Dispatchers.IO) { val n = FanMode.prev(fanMode); n.enable(executor); fanMode = n } },
+                    onNext = { scope.launch(Dispatchers.IO) { val n = FanMode.next(fanMode); n.enable(executor); fanMode = n } })
             }
 
             HorizontalDivider(color = CocoonDivider)
 
-            // ── Exit Game ──────────────────────────────────────────────
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onExitGame() }
-                    .padding(horizontal = 20.dp, vertical = 18.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Close,
-                    contentDescription = null,
-                    tint = CocoonDanger,
-                    modifier = Modifier.size(20.dp),
-                )
-                Spacer(Modifier.width(14.dp))
-                Text(
-                    text  = "Exit Game",
-                    color = CocoonDanger,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 15.sp,
-                )
-            }
+            ActionRow(Icons.Filled.Close, "Exit Game", onExitGame, labelColor = CocoonDanger)
         }
     }
 }
-
-// ── Reusable row components ────────────────────────────────────────────────
 
 @Composable
 private fun ActionRow(
     icon: ImageVector,
     label: String,
     onClick: () -> Unit,
+    focusRequester: FocusRequester? = null,
+    labelColor: Color = CocoonTextPrimary,
 ) {
+    var focused by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() }
+            .let { if (focusRequester != null) it.focusRequester(focusRequester) else it }
+            .onFocusChanged { focused = it.isFocused }
+            .focusable()
+            .background(if (focused) CocoonSurface2 else Color.Transparent)
+            .clickable(onClick = onClick)
             .padding(horizontal = 20.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = CocoonTextPrimary,
-            modifier = Modifier.size(20.dp),
-        )
+        Icon(icon, null, tint = labelColor, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(14.dp))
-        Text(
-            text  = label,
-            color = CocoonTextPrimary,
-            fontWeight = FontWeight.Medium,
-            fontSize = 15.sp,
-        )
+        Text(label, color = labelColor, fontWeight = FontWeight.Medium, fontSize = 15.sp)
     }
 }
 
@@ -313,51 +161,33 @@ private fun ModeRow(
     onPrev: () -> Unit,
     onNext: () -> Unit,
 ) {
+    var focused by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .onFocusChanged { focused = it.isFocused }
+            .focusable()
+            .onPreviewKeyEvent { e ->
+                when {
+                    e.key == Key.DirectionLeft  && e.type == KeyEventType.KeyDown -> { onPrev(); true }
+                    e.key == Key.DirectionRight && e.type == KeyEventType.KeyDown -> { onNext(); true }
+                    else -> false
+                }
+            }
+            .background(if (focused) CocoonSurface2 else Color.Transparent)
             .padding(horizontal = 12.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text     = label,
-            color    = CocoonTextPrimary,
-            fontSize = 14.sp,
-            modifier = Modifier
-                .weight(1f)
-                .padding(start = 8.dp),
-        )
-
-        // ◀  Value  ▶
+        Text(label, color = CocoonTextPrimary, fontSize = 14.sp,
+            modifier = Modifier.weight(1f).padding(start = 8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(
-                onClick = onPrev,
-                modifier = Modifier.size(36.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.ChevronLeft,
-                    contentDescription = "Previous",
-                    tint = CocoonTextSecondary,
-                )
+            IconButton(onClick = onPrev, modifier = Modifier.size(36.dp)) {
+                Icon(Icons.Filled.ChevronLeft, "Previous", tint = CocoonTextSecondary)
             }
-
-            Text(
-                text      = currentValue,
-                color     = CocoonTextSecondary,
-                fontSize  = 13.sp,
-                textAlign = TextAlign.Center,
-                modifier  = Modifier.widthIn(min = 76.dp),
-            )
-
-            IconButton(
-                onClick = onNext,
-                modifier = Modifier.size(36.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.ChevronRight,
-                    contentDescription = "Next",
-                    tint = CocoonTextSecondary,
-                )
+            Text(currentValue, color = CocoonTextSecondary, fontSize = 13.sp,
+                textAlign = TextAlign.Center, modifier = Modifier.widthIn(min = 76.dp))
+            IconButton(onClick = onNext, modifier = Modifier.size(36.dp)) {
+                Icon(Icons.Filled.ChevronRight, "Next", tint = CocoonTextSecondary)
             }
         }
     }
