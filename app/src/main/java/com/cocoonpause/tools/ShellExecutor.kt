@@ -23,11 +23,11 @@ class ShellExecutor {
     }
 
     fun executeAsRoot(cmd: String): Result<String?> {
-        if (binder == null) return Result.failure(IllegalStateException("PServer not available"))
+        val b = binder ?: return Result.failure(IllegalStateException("PServer not available"))
         val data = Parcel.obtain()
         val reply = Parcel.obtain()
         data.writeStringArray(arrayOf(cmd, "1"))
-        runCatching { binder.transact(0, data, reply, 0) }
+        runCatching { b.transact(0, data, reply, 0) }
             .getOrElse { return Result.failure(it) }
         val result = reply.createByteArray()?.toString(Charset.defaultCharset())?.trim()?.let {
             if (it == "null") null else it

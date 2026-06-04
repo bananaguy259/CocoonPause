@@ -37,6 +37,7 @@
                 android:resource="@xml/accessibility_service_config" />
         </service>
 
+            <activity android:name=".PauseMenuActivity" android:exported="false" android:screenOrientation="landscape" android:theme="@style/Theme.PauseMenu" android:excludeFromRecents="true" android:taskAffinity="" android:launchMode="singleInstance" />
     </application>
 
 </manifest>

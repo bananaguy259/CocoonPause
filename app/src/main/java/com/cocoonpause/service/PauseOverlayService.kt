@@ -145,6 +145,8 @@ class PauseOverlayService : AccessibilityService() {
     // ── Helpers ───────────────────────────────────────────────────────────
 
     /** Re-reads the trigger binding from SharedPreferences (called from settings screen on save). */
+    fun getExecutor(): ShellExecutor = executor
+
     fun reloadTrigger() {
         triggerKeycodes = PrefsManager.getTriggerKeycodes(this)
     }
