@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CocoonPause</string>
+    <string name="service_label">CocoonPause Overlay</string>
+    <string name="a11y_description">Listens for your trigger button(s) to show the pause overlay from any game or app.</string>
+</resources>

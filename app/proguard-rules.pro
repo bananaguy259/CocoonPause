@@ -1,0 +1,3 @@
+-keep class com.cocoonpause.service.PauseOverlayService { *; }
+-keep class com.cocoonpause.MainActivity { *; }
+-keep class com.cocoonpause.tools.ShellExecutor { *; }
