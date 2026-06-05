@@ -5,7 +5,6 @@ import android.os.Handler
 import android.os.Looper
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
-import android.widget.Toast
 import com.cocoonpause.tools.PrefsManager
 import com.cocoonpause.tools.ShellExecutor
 import kotlinx.coroutines.CoroutineScope
@@ -37,7 +36,7 @@ class PauseOverlayService : AccessibilityService() {
     override fun onDestroy() {
         super.onDestroy()
         job.cancel()
-        runCatching { overlayManager.hide() }
+        runCatching { overlayManager.destroy() }
         instance = null
     }
 
@@ -46,33 +45,50 @@ class PauseOverlayService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         if (event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
         val pkg = event.packageName?.toString() ?: return
-        if (pkg == packageName) return
-        if (pkg in IGNORED_PACKAGES) return
+        if (pkg == packageName || pkg in IGNORED_PACKAGES) return
         currentForegroundPackage = pkg
         overlayManager.currentForegroundPackage = pkg
     }
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
-        if (triggerKeycodes.isEmpty()) return false
+        if (overlayManager.isShowing) {
+            // Consume all key-ups and repeats silently
+            if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount > 0) return true
 
+            when (event.keyCode) {
+                KeyEvent.KEYCODE_DPAD_UP     -> overlayManager.navigateUp()
+                KeyEvent.KEYCODE_DPAD_DOWN   -> overlayManager.navigateDown()
+                KeyEvent.KEYCODE_DPAD_LEFT   -> overlayManager.navigatePrev()
+                KeyEvent.KEYCODE_DPAD_RIGHT  -> overlayManager.navigateNext()
+                KeyEvent.KEYCODE_BUTTON_A,
+                KeyEvent.KEYCODE_DPAD_CENTER,
+                KeyEvent.KEYCODE_ENTER       -> overlayManager.activate()
+                // B or Back always closes the overlay
+                KeyEvent.KEYCODE_BUTTON_B,
+                KeyEvent.KEYCODE_BACK        -> Handler(Looper.getMainLooper()).post { overlayManager.hide() }
+                else -> {
+                    // Allow the configured trigger combo to close it too
+                    pressedKeys.add(event.keyCode)
+                    if (triggerKeycodes.isNotEmpty() && pressedKeys.containsAll(triggerKeycodes))
+                        Handler(Looper.getMainLooper()).post { overlayManager.hide() }
+                }
+            }
+            return true // consume EVERYTHING while overlay is up
+        }
+
+        // Overlay not showing — watch for trigger combo to open it
+        if (triggerKeycodes.isEmpty()) return false
         when (event.action) {
             KeyEvent.ACTION_DOWN -> {
                 if (event.repeatCount > 0) return false
                 pressedKeys.add(event.keyCode)
                 if (pressedKeys.containsAll(triggerKeycodes)) {
-                    if (overlayManager.isShowing) {
-                        Handler(Looper.getMainLooper()).post { overlayManager.hide() }
-                    } else {
-                        Handler(Looper.getMainLooper()).post { overlayManager.show() }
-                    }
+                    Handler(Looper.getMainLooper()).post { overlayManager.show() }
                     return true
                 }
             }
-            KeyEvent.ACTION_UP -> {
-                pressedKeys.remove(event.keyCode)
-            }
+            KeyEvent.ACTION_UP -> pressedKeys.remove(event.keyCode)
         }
-        // Pass everything else through — the overlay window handles its own input
         return false
     }
 
@@ -85,28 +101,6 @@ class PauseOverlayService : AccessibilityService() {
         }
     }
 
-    fun captureScreenshot() {
-        overlayManager.hide()
-        // Wait for the overlay window to fully clear the compositor before snapping
-        Handler(Looper.getMainLooper()).postDelayed({
-            scope.launch {
-                val ts = System.currentTimeMillis()
-                val dir = "/storage/emulated/0/Pictures/Screenshots"
-                val path = "$dir/CocoonPause_$ts.png"
-                executor.executeAsRoot("mkdir -p $dir")
-                val result = executor.executeAsRoot("screencap -p $path")
-                // Tell the media scanner about the new file so it shows in gallery
-                executor.executeAsRoot(
-                    "am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file://$path"
-                )
-                withContext(Dispatchers.Main) {
-                    val msg = if (result.isSuccess) "Screenshot saved!" else "Screenshot failed"
-                    Toast.makeText(this@PauseOverlayService, msg, Toast.LENGTH_SHORT).show()
-                }
-            }
-        }, 600)
-    }
-
     fun getExecutor(): ShellExecutor = executor
 
     fun reloadTrigger() {
@@ -116,9 +110,6 @@ class PauseOverlayService : AccessibilityService() {
     companion object {
         var instance: PauseOverlayService? = null
             private set
-
-        private val IGNORED_PACKAGES = setOf(
-            "com.android.systemui", "android", "com.android.launcher3"
-        )
+        private val IGNORED_PACKAGES = setOf("com.android.systemui", "android", "com.android.launcher3")
     }
 }
