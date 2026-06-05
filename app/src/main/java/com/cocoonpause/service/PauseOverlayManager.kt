@@ -7,7 +7,6 @@ import android.view.WindowManager
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
@@ -31,7 +30,7 @@ class PauseOverlayManager(
     private val windowManager = service.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
-    private var overlayView: ComposeView? = null
+    private var overlayView: OverlayComposeView? = null
     private var lifecycleOwner: OverlayLifecycleOwner? = null
 
     var isShowing = false
@@ -78,7 +77,7 @@ class PauseOverlayManager(
 
         val owner = OverlayLifecycleOwner().also { it.start(); lifecycleOwner = it }
 
-        val view = ComposeView(service).apply {
+        val view = OverlayComposeView(service, this@PauseOverlayManager).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
             setViewTreeLifecycleOwner(owner)
             setViewTreeViewModelStoreOwner(owner)
@@ -95,6 +94,7 @@ class PauseOverlayManager(
         }
 
         windowManager.addView(view, params)
+        view.requestFocus()
         overlayView = view
         isShowing = true
     }
