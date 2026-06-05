@@ -52,7 +52,7 @@ class PauseOverlayService : AccessibilityService() {
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
         if (overlayManager.isShowing) {
-            // Consume all key-ups and repeats silently
+            // Silently consume all key-ups and repeats
             if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount > 0) return true
 
             when (event.keyCode) {
@@ -63,26 +63,32 @@ class PauseOverlayService : AccessibilityService() {
                 KeyEvent.KEYCODE_BUTTON_A,
                 KeyEvent.KEYCODE_DPAD_CENTER,
                 KeyEvent.KEYCODE_ENTER       -> overlayManager.activate()
-                // B or Back always closes the overlay
+                // B or Back always closes
                 KeyEvent.KEYCODE_BUTTON_B,
-                KeyEvent.KEYCODE_BACK        -> Handler(Looper.getMainLooper()).post { overlayManager.hide() }
+                KeyEvent.KEYCODE_BACK        -> {
+                    pressedKeys.clear() // reset so nothing is stale after close
+                    Handler(Looper.getMainLooper()).post { overlayManager.hide() }
+                }
                 else -> {
-                    // Allow the configured trigger combo to close it too
+                    // Also allow the configured trigger combo to close it
                     pressedKeys.add(event.keyCode)
-                    if (triggerKeycodes.isNotEmpty() && pressedKeys.containsAll(triggerKeycodes))
+                    if (triggerKeycodes.isNotEmpty() && pressedKeys.containsAll(triggerKeycodes)) {
+                        pressedKeys.clear()
                         Handler(Looper.getMainLooper()).post { overlayManager.hide() }
+                    }
                 }
             }
             return true // consume EVERYTHING while overlay is up
         }
 
-        // Overlay not showing — watch for trigger combo to open it
+        // Overlay not showing — watch for trigger combo
         if (triggerKeycodes.isEmpty()) return false
         when (event.action) {
             KeyEvent.ACTION_DOWN -> {
                 if (event.repeatCount > 0) return false
                 pressedKeys.add(event.keyCode)
                 if (pressedKeys.containsAll(triggerKeycodes)) {
+                    pressedKeys.clear() // reset so stale keys can't cause phantom opens
                     Handler(Looper.getMainLooper()).post { overlayManager.show() }
                     return true
                 }
@@ -110,6 +116,8 @@ class PauseOverlayService : AccessibilityService() {
     companion object {
         var instance: PauseOverlayService? = null
             private set
-        private val IGNORED_PACKAGES = setOf("com.android.systemui", "android", "com.android.launcher3")
+        private val IGNORED_PACKAGES = setOf(
+            "com.android.systemui", "android", "com.android.launcher3"
+        )
     }
 }
