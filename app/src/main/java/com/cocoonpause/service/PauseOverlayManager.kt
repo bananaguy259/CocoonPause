@@ -3,6 +3,7 @@ package com.cocoonpause.service
 import android.content.Context
 import android.graphics.PixelFormat
 import android.view.Gravity
+import android.view.View
 import android.view.WindowManager
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -30,19 +31,17 @@ class PauseOverlayManager(
     private val windowManager = service.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
-    private var overlayView: OverlayComposeView? = null
+    private var overlayView: View? = null
     private var lifecycleOwner: OverlayLifecycleOwner? = null
 
     var isShowing = false
         private set
     var currentForegroundPackage = ""
 
-    // D-pad selection (0=controller,1=l2r2,2=perf,3=fan,4=exit)
     val itemCount = 5
     var selectedIndex by mutableStateOf(0)
         private set
 
-    // Mode states — Compose observes these directly
     var controllerStyle by mutableStateOf<ControllerStyle>(ControllerStyle.Unknown)
         private set
     var l2r2Style by mutableStateOf<L2R2Style>(L2R2Style.Unknown)
@@ -70,32 +69,35 @@ class PauseOverlayManager(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                     WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT,
         ).apply { gravity = Gravity.TOP or Gravity.START }
 
         val owner = OverlayLifecycleOwner().also { it.start(); lifecycleOwner = it }
 
-        val view = OverlayComposeView(service, this@PauseOverlayManager).apply {
-            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+        val container = OverlayComposeView(service, this@PauseOverlayManager).apply {
+            // Set ViewTree owners on the root so ComposeView finds them by traversing up
             setViewTreeLifecycleOwner(owner)
             setViewTreeViewModelStoreOwner(owner)
             setViewTreeSavedStateRegistryOwner(owner)
-            setContent {
-                CocoonPauseTheme {
-                    PauseMenuContent(
-                        overlayManager = this@PauseOverlayManager,
-                        onDismiss  = { hide() },
-                        onExitGame = { service.exitGame() },
-                    )
+            composeView.apply {
+                setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+                setContent {
+                    CocoonPauseTheme {
+                        PauseMenuContent(
+                            overlayManager = this@PauseOverlayManager,
+                            onDismiss  = { hide() },
+                            onExitGame = { service.exitGame() },
+                        )
+                    }
                 }
             }
         }
 
-        windowManager.addView(view, params)
-        view.requestFocus()
-        overlayView = view
+        windowManager.addView(container, params)
+        container.requestFocus()
+        overlayView = container
         isShowing = true
     }
 
@@ -110,16 +112,12 @@ class PauseOverlayManager(
 
     fun destroy() { runCatching { hide() } }
 
-    // ── Navigation (called from onKeyEvent on the main thread) ────────────
     fun navigateUp()   { selectedIndex = (selectedIndex - 1 + itemCount) % itemCount }
     fun navigateDown() { selectedIndex = (selectedIndex + 1) % itemCount }
-
     fun navigatePrev() { scope.launch { applyChange(selectedIndex, prev = true) } }
     fun navigateNext() { scope.launch { applyChange(selectedIndex, prev = false) } }
+    fun activate()     { if (selectedIndex == 4) service.exitGame() }
 
-    fun activate() { if (selectedIndex == 4) service.exitGame() }
-
-    // ── Touch arrow buttons call these directly with the row index ─────────
     fun prevForRow(row: Int) { scope.launch { applyChange(row, prev = true) } }
     fun nextForRow(row: Int) { scope.launch { applyChange(row, prev = false) } }
 
