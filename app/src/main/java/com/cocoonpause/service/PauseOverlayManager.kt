@@ -3,11 +3,15 @@ package com.cocoonpause.service
 import android.content.Context
 import android.graphics.PixelFormat
 import android.view.Gravity
+import android.view.InputDevice
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.widget.FrameLayout
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
@@ -19,6 +23,7 @@ import com.cocoonpause.models.PerfMode
 import com.cocoonpause.tools.ShellExecutor
 import com.cocoonpause.ui.PauseMenuContent
 import com.cocoonpause.ui.theme.CocoonPauseTheme
+import kotlin.math.abs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -76,23 +81,53 @@ class PauseOverlayManager(
 
         val owner = OverlayLifecycleOwner().also { it.start(); lifecycleOwner = it }
 
-        val container = OverlayComposeView(service, this@PauseOverlayManager).apply {
-            // Set ViewTree owners on the root so ComposeView finds them by traversing up
-            setViewTreeLifecycleOwner(owner)
-            setViewTreeViewModelStoreOwner(owner)
-            setViewTreeSavedStateRegistryOwner(owner)
-            composeView.apply {
-                setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
-                setContent {
-                    CocoonPauseTheme {
-                        PauseMenuContent(
-                            overlayManager = this@PauseOverlayManager,
-                            onDismiss  = { hide() },
-                            onExitGame = { service.exitGame() },
-                        )
-                    }
+        val composeView = ComposeView(service).apply {
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+            setContent {
+                CocoonPauseTheme {
+                    PauseMenuContent(
+                        overlayManager = this@PauseOverlayManager,
+                        onDismiss  = { hide() },
+                        onExitGame = { service.exitGame() },
+                    )
                 }
             }
+        }
+
+        val container = object : FrameLayout(service) {
+            var lastNavX = 0
+            var lastNavY = 0
+
+            override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+                val src = event.source
+                val isJoystick = src and InputDevice.SOURCE_JOYSTICK != 0
+                              || src and InputDevice.SOURCE_GAMEPAD != 0
+                if (isJoystick && event.action == MotionEvent.ACTION_MOVE) {
+                    val hatX   = event.getAxisValue(MotionEvent.AXIS_HAT_X)
+                    val hatY   = event.getAxisValue(MotionEvent.AXIS_HAT_Y)
+                    val stickX = event.getAxisValue(MotionEvent.AXIS_X)
+                    val stickY = event.getAxisValue(MotionEvent.AXIS_Y)
+                    val x = if (abs(hatX) >= abs(stickX)) hatX else stickX
+                    val y = if (abs(hatY) >= abs(stickY)) hatY else stickY
+                    val nx = if (x < -0.5f) -1 else if (x > 0.5f) 1 else 0
+                    val ny = if (y < -0.5f) -1 else if (y > 0.5f) 1 else 0
+                    if (nx != lastNavX) {
+                        lastNavX = nx
+                        if (nx < 0) navigatePrev() else if (nx > 0) navigateNext()
+                    }
+                    if (ny != lastNavY) {
+                        lastNavY = ny
+                        if (ny < 0) navigateUp() else if (ny > 0) navigateDown()
+                    }
+                    return true
+                }
+                return super.dispatchGenericMotionEvent(event)
+            }
+        }.also { c ->
+            c.setViewTreeLifecycleOwner(owner)
+            c.setViewTreeViewModelStoreOwner(owner)
+            c.setViewTreeSavedStateRegistryOwner(owner)
+            c.addView(composeView)
         }
 
         windowManager.addView(container, params)
