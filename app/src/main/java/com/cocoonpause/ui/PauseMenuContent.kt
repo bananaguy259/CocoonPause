@@ -16,15 +16,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -37,7 +31,6 @@ private val CardBg      = Color(0xFF131313)
 private val RowSelected = Color(0xFF222222)
 private val DividerClr  = Color(0x14FAFAFA)
 private val CocoonWhite = Color(0xFFFAFAFA)
-private val GlowHalo    = Color(0x55FAFAFA)
 private val ScrimClr    = Color(0xB3000000)
 
 private const val IC_GAMEPAD = "\uE30F"
@@ -65,16 +58,16 @@ fun PauseMenuContent(
             .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { onDismiss() },
         contentAlignment = Alignment.Center,
     ) {
-        // Outer card — shadow gives white glow around the whole menu
+        // Card with outer white bloom via shadow
         Box(
             modifier = Modifier
                 .width(500.dp)
                 .shadow(
-                    elevation     = 28.dp,
-                    shape         = cardShape,
-                    clip          = false,
-                    spotColor     = CocoonWhite.copy(alpha = 0.35f),
-                    ambientColor  = CocoonWhite.copy(alpha = 0.12f),
+                    elevation    = 32.dp,
+                    shape        = cardShape,
+                    clip         = false,
+                    spotColor    = CocoonWhite.copy(alpha = 0.50f),
+                    ambientColor = CocoonWhite.copy(alpha = 0.20f),
                 )
                 .clip(cardShape)
                 .background(CardBg)
@@ -82,45 +75,77 @@ fun PauseMenuContent(
         ) {
             if (!loaded) {
                 Box(Modifier.fillMaxWidth().padding(vertical = 52.dp), Alignment.Center) {
-                    CircularProgressIndicator(color = CocoonWhite.copy(alpha = 0.5f),
-                        modifier = Modifier.size(28.dp), strokeWidth = 2.dp)
+                    CircularProgressIndicator(
+                        color = CocoonWhite.copy(alpha = 0.5f),
+                        modifier = Modifier.size(28.dp),
+                        strokeWidth = 2.dp,
+                    )
                 }
             } else {
-                // fadingEdges uses BlendMode.DstIn — alpha-masks the content at
-                // top/bottom so it fades to transparent (shows CardBg behind it)
-                // with NO colour added, just opacity reduction.
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .fadingEdges(edgeFraction = 0.11f),
-                ) {
-                    Spacer(Modifier.height(6.dp))
-                    ModeRow(IC_GAMEPAD, "Controller Mode",
-                        overlayManager.controllerStyle.displayName, sel == 0,
-                        { overlayManager.prevForRow(0) }, { overlayManager.nextForRow(0) })
-                    RowDivider()
-                    ModeRow(IC_TUNE, "L2/R2 Mode",
-                        overlayManager.l2r2Style.displayName, sel == 1,
-                        { overlayManager.prevForRow(1) }, { overlayManager.nextForRow(1) })
-                    RowDivider()
-                    ModeRow(IC_BOLT, "Performance",
-                        overlayManager.perfMode.displayName, sel == 2,
-                        { overlayManager.prevForRow(2) }, { overlayManager.nextForRow(2) })
-                    RowDivider()
-                    ModeRow(IC_FAN, "Fan Mode",
-                        overlayManager.fanMode.displayName, sel == 3,
-                        { overlayManager.prevForRow(3) }, { overlayManager.nextForRow(3) })
-                    RowDivider()
-                    ActionRow(IC_POWER, "Exit Game", sel == 4, CocoonDanger, onExitGame)
-                    Spacer(Modifier.height(6.dp))
+                Box(modifier = Modifier.fillMaxWidth()) {
+
+                    // ── Rows ────────────────────────────────────────────────
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        ModeRow(
+                            IC_GAMEPAD, "Controller Mode",
+                            overlayManager.controllerStyle.displayName, sel == 0,
+                            { overlayManager.prevForRow(0) }, { overlayManager.nextForRow(0) },
+                        )
+                        RowDivider()
+                        ModeRow(
+                            IC_TUNE, "L2/R2 Mode",
+                            overlayManager.l2r2Style.displayName, sel == 1,
+                            { overlayManager.prevForRow(1) }, { overlayManager.nextForRow(1) },
+                        )
+                        RowDivider()
+                        ModeRow(
+                            IC_BOLT, "Performance",
+                            overlayManager.perfMode.displayName, sel == 2,
+                            { overlayManager.prevForRow(2) }, { overlayManager.nextForRow(2) },
+                        )
+                        RowDivider()
+                        ModeRow(
+                            IC_FAN, "Fan Mode",
+                            overlayManager.fanMode.displayName, sel == 3,
+                            { overlayManager.prevForRow(3) }, { overlayManager.nextForRow(3) },
+                        )
+                        RowDivider()
+                        ActionRow(IC_POWER, "Exit Game", sel == 4, CocoonDanger, onExitGame)
+                    }
+
+                    // ── White fade overlays — lighten the top and bottom edges ──
+                    // These sit on top of the rows and add a white tint at the
+                    // card edges, giving the "lighter at the edges" Cocoon look
+                    // without darkening anything underneath.
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                            .align(Alignment.TopCenter)
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(Color(0x65FAFAFA), Color.Transparent)
+                                )
+                            )
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                            .align(Alignment.BottomCenter)
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(Color.Transparent, Color(0x65FAFAFA))
+                                )
+                            )
+                    )
                 }
             }
         }
     }
 }
 
-// ── Rows ──────────────────────────────────────────────────────────────────────
-
+// ── Mode row (◀ value ▶) ────────────────────────────────────────────────────
 @Composable
 private fun ModeRow(
     icon: String, label: String, value: String, selected: Boolean,
@@ -129,10 +154,6 @@ private fun ModeRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            // No horizontal padding — selector runs edge-to-edge.
-            // Card's clip(RoundedCornerShape(20dp)) handles the corners.
-            .padding(vertical = 1.dp)
-            .whiteGlow(selected, RectangleShape)
             .background(if (selected) RowSelected else Color.Transparent)
             .border(BorderStroke(4.5.dp, if (selected) CocoonWhite else Color.Transparent))
             .padding(horizontal = 18.dp, vertical = 14.dp),
@@ -140,14 +161,24 @@ private fun ModeRow(
     ) {
         Symbol(icon, 26.dp)
         Spacer(Modifier.width(18.dp))
-        Text(label, color = CocoonWhite, fontSize = 17.sp,
-            fontWeight = FontWeight.Normal, modifier = Modifier.weight(1f))
+        Text(
+            label,
+            color = CocoonWhite,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Normal,
+            modifier = Modifier.weight(1f),
+        )
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onPrev, modifier = Modifier.size(32.dp)) {
                 Symbol(IC_CHEV_L, 20.dp, CocoonWhite.copy(alpha = 0.45f))
             }
-            Text(value, color = CocoonWhite.copy(alpha = 0.55f), fontSize = 13.sp,
-                textAlign = TextAlign.Center, modifier = Modifier.widthIn(min = 70.dp))
+            Text(
+                value,
+                color = CocoonWhite.copy(alpha = 0.55f),
+                fontSize = 13.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.widthIn(min = 70.dp),
+            )
             IconButton(onClick = onNext, modifier = Modifier.size(32.dp)) {
                 Symbol(IC_CHEV_R, 20.dp, CocoonWhite.copy(alpha = 0.45f))
             }
@@ -155,6 +186,7 @@ private fun ModeRow(
     }
 }
 
+// ── Action row (tap only) ───────────────────────────────────────────────────
 @Composable
 private fun ActionRow(
     icon: String, label: String, selected: Boolean,
@@ -163,8 +195,6 @@ private fun ActionRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 1.dp)
-            .whiteGlow(selected, RectangleShape)
             .background(if (selected) RowSelected else Color.Transparent)
             .border(BorderStroke(4.5.dp, if (selected) CocoonWhite else Color.Transparent))
             .clickable { onClick() }
@@ -177,40 +207,23 @@ private fun ActionRow(
     }
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
+// ── Helpers ─────────────────────────────────────────────────────────────────
 @Composable
 private fun RowDivider() {
-    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp),
-        thickness = 0.5.dp, color = DividerClr)
+    HorizontalDivider(
+        modifier  = Modifier.padding(horizontal = 16.dp),
+        thickness = 0.5.dp,
+        color     = DividerClr,
+    )
 }
 
 @Composable
 private fun Symbol(cp: String, size: Dp, color: Color = CocoonWhite) {
-    Text(cp, fontFamily = MaterialSymbolsRounded,
-        fontSize = size.value.sp, lineHeight = size.value.sp, color = color)
+    Text(
+        cp,
+        fontFamily = MaterialSymbolsRounded,
+        fontSize   = size.value.sp,
+        lineHeight = size.value.sp,
+        color      = color,
+    )
 }
-
-// White glow via Android's coloured shadow system (API 28+)
-private fun Modifier.whiteGlow(selected: Boolean, shape: Shape): Modifier =
-    if (!selected) this
-    else shadow(elevation = 22.dp, shape = shape, clip = false,
-        spotColor = CocoonWhite, ambientColor = GlowHalo)
-
-// Fading edges using BlendMode.DstIn — multiplies content alpha by the mask.
-// No colour is added; only opacity at top/bottom is reduced.
-// CompositingStrategy.Offscreen is required for DstIn to work correctly.
-private fun Modifier.fadingEdges(edgeFraction: Float = 0.10f): Modifier =
-    graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-        .drawWithContent {
-            drawContent()
-            drawRect(
-                brush = Brush.verticalGradient(
-                    0f           to Color.Transparent,
-                    edgeFraction to Color.White,
-                    (1f - edgeFraction) to Color.White,
-                    1f           to Color.Transparent,
-                ),
-                blendMode = BlendMode.DstIn,
-            )
-        }
